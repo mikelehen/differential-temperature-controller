@@ -10,6 +10,12 @@ Device _device;           // I/O driver for the hardware device (set relay state
 CloudStorage _cloud;      // Load/store data in the Firebase realtime database.
 Thermistor _thermistor;   // For converting ADC values to temperatures.
 
+typedef enum {
+  NONE = 0,
+  ENGAGE,
+  DISENGAGE,
+} CollectorTransition;
+
 void setup() {
   // Use same baudrate as the ESP8266 bootloader, so that boot messages are readable.
   Serial.begin(74880);
@@ -56,15 +62,16 @@ void setup() {
   Serial.println("End: Setup()");
 }
 
-// Returns true if the collector should be engaged.  't0' is the temperature of the
-// pool.  't1' is the temperature of the collector.
-bool getShouldEngageCollector(double t0, double t1) {
+// Returns ENGAGE if the collector should be engaged, DISENGAGE if it should be disengaged,
+// NONE if it should be left in its current state. 't0' is the temperature of the pool.
+// 't1' is the temperature of the collector.
+CollectorTransition getShouldEngageCollector(double t0, double t1) {
   // If either the pool or the collector are below our minimum temperature, do
   // not engage the collector.
   double minT = _cloud.getMinTOn();
   if (t0 < minT || t1 < minT) {
     Serial.print("Temperature below minimum safe operating temperature "); + Serial.print(minT); Serial.println(" celsius.");
-    return false;
+    return CollectorTransition::DISENGAGE;
   }
 
   // If the delta between the pool and collector is large, engage the collector.
@@ -75,10 +82,12 @@ bool getShouldEngageCollector(double t0, double t1) {
   
   if (delta > deltaTOn) {
     Serial.print("Delta "); Serial.print(delta); Serial.print(" > "); Serial.print(deltaTOn); Serial.println(": Collector active.");
-    return true;
+    return CollectorTransition::ENGAGE;
   } else if (delta < deltaTOff) {
     Serial.print("Delta "); Serial.print(delta); Serial.print(" < "); Serial.print(deltaTOff); Serial.println(": Collector inactive.");
-    return false;
+    return CollectorTransition::DISENGAGE;
+  } else {
+    return CollectorTransition::NONE;
   }
 }
 
@@ -106,9 +115,12 @@ void loop() {
   Serial.print("adc1: "); t1.print();
 
   // Given the temperature data, engage/disengage the collector as appropriate.
-  _device.setRelay(getShouldEngageCollector(t0._celsius, t1._celsius));
-
+  CollectorTransition transition = getShouldEngageCollector(t0._celsius, t1._celsius);
+  if (transition != CollectorTransition::NONE) {
+    _device.setRelay(transition == CollectorTransition::ENGAGE);
+  }
   // Log the temperature data for this period, and the state of the solar collector.
-  _cloud.log(_device, timestamp, t0._adc, t1._adc, _device.getRelay());
+  //_cloud.log(_device, timestamp, t0._adc, t1._adc, _device.getRelay());
+  _cloud.log(_device, timestamp, t0._celsius, t1._celsius, _device.getRelay());
   Serial.println();
 }
