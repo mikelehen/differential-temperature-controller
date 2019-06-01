@@ -5,10 +5,12 @@
 #include "CloudStorage.h"
 #include "Thermistor.h"
 #include "NTPTime.h"
+#include "Log.h"
 
 Device _device;           // I/O driver for the hardware device (set relay state, set LED state, etc.)
 CloudStorage _cloud;      // Load/store data in the Firebase realtime database.
 Thermistor _thermistor;   // For converting ADC values to temperatures.
+Log _log;
 
 typedef enum {
   NONE = 0,
@@ -42,7 +44,7 @@ void setup() {
   
   // Poll until we've been able to update our cloud-stored config for Firebase.
   while (!_cloud.update(_device)) {
-    delay(300);
+    delay(30000);
   }
 
   // Begin synchronizing the 'Time' library with the NTP server.
@@ -60,6 +62,7 @@ void setup() {
     _cloud.getBCoefficient());
 
   Serial.println("End: Setup()");
+  _log.info("Initialized.");
 }
 
 // Returns ENGAGE if the collector should be engaged, DISENGAGE if it should be disengaged,
@@ -74,6 +77,12 @@ CollectorTransition getShouldEngageCollector(double t0, double t1) {
     return CollectorTransition::DISENGAGE;
   }
 
+  double maxT = _cloud.getMaxTOn();
+  if (t0 > maxT) {
+    Serial.print("Temperature has reached maximum temperature "); + Serial.print(maxT); Serial.println(" celsius.");
+    return CollectorTransition::DISENGAGE;
+  }
+  
   // If the delta between the pool and collector is large, engage the collector.
   // If the delta is small or negative, ensure the collector is not engaged.
   double delta = t1 - t0;
@@ -81,12 +90,15 @@ CollectorTransition getShouldEngageCollector(double t0, double t1) {
   double deltaTOff = _cloud.getDeltaTOff();
   
   if (delta > deltaTOn) {
-    Serial.print("Delta "); Serial.print(delta); Serial.print(" > "); Serial.print(deltaTOn); Serial.println(": Collector active.");
+//    Serial.print("Delta "); Serial.print(delta); Serial.print(" > "); Serial.print(deltaTOn); Serial.println(": Collector active.");
+    Serial.println(String("Delta ") + delta + " > " + deltaTOn + ": Collector active.");
     return CollectorTransition::ENGAGE;
   } else if (delta < deltaTOff) {
-    Serial.print("Delta "); Serial.print(delta); Serial.print(" < "); Serial.print(deltaTOff); Serial.println(": Collector inactive.");
+//    Serial.print("Delta "); Serial.print(delta); Serial.print(" < "); Serial.print(deltaTOff); Serial.println(": Collector inactive.");
+    Serial.println(String("Delta ") + delta + " < " + deltaTOff + ": Collector inactive.");
     return CollectorTransition::DISENGAGE;
   } else {
+    Serial.println(String("Delta ") + delta + " > " + deltaTOff + ", < " + deltaTOn + ": Collector unchanged.");
     return CollectorTransition::NONE;
   }
 }
@@ -120,7 +132,7 @@ void loop() {
     _device.setRelay(transition == CollectorTransition::ENGAGE);
   }
   // Log the temperature data for this period, and the state of the solar collector.
-  //_cloud.log(_device, timestamp, t0._adc, t1._adc, _device.getRelay());
-  _cloud.log(_device, timestamp, t0._celsius, t1._celsius, _device.getRelay());
+  _cloud.log(_device, timestamp, t0._adc, t1._adc, _device.getRelay());
+//  _cloud.log(_device, timestamp, t0._celsius, t1._celsius, _device.getRelay());
   Serial.println();
 }

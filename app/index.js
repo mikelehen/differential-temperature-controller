@@ -139,7 +139,7 @@ function updateDataSet() {
   const ordered = log.sort((left, right) => left.time - right.time);
 
   tempChart.data.labels = ordered.map(
-      (sample) => new Date(sample.time * 1000).toISOString().slice(0, 16));
+      (sample) => new Date(sample.time).toLocaleString());
 
   const extractTemps = (channel) => {
     tempChart.data.datasets[channel].data = ordered.map((sample) => {
@@ -166,16 +166,25 @@ function updateDataSet() {
   tempChart.update();
 }
 
+let dataPoint = 0;
 const update = (child) => {
-  const index = child.key;
+  // const index = child.key;
   const value = child.val();
-  log[index] = value;
+  log[dataPoint++] = value;
   if (!updatePending) {
     setTimeout(updateDataSet, 3000);
     updatePending = true;
   }
 };
 
-const logRef = firebase.database().ref('log');
+const search = location.search.substring(1);
+let params = { };
+if (search) {
+  params = JSON.parse('{"' +
+          decodeURI(search).replace(/"/g, '\\"').replace(/&/g, '","').replace(/=/g, '":"') +
+          '"}');
+}
+const limit = parseInt(params['limit']) || 1000;
+const logRef = firebase.database().ref('log').orderByChild('time').limitToLast(limit);
 logRef.on('child_added', update);
 logRef.on('child_changed', update);

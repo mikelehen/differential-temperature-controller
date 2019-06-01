@@ -1,3 +1,6 @@
 *.log
 node_modules
 tmp
+.firebaserc
+firebase-info.txt
+Secrets.h

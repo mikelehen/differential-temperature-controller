@@ -3,8 +3,8 @@
 
 #include <Firebase.h>
 #include <FirebaseArduino.h>
-#include <FirebaseCloudMessaging.h>
-#include <FirebaseError.h>
+//#include <FirebaseCloudMessaging.h>
+//#include <FirebaseError.h>
 #include <FirebaseHttpClient.h>
 #include <FirebaseObject.h>
 
@@ -54,6 +54,11 @@ class CloudStorage {
     const char* const _min_t_on_ref               = "minTOn";
     float   _min_t_on                             = 10;
 
+    // The maximum absolute temperature at which to consider engaging the solar
+    // collector. (Used to prevent over-heating the pool.)
+    const char* const _max_t_on_ref               = "maxTOn";
+    float _max_t_on                               = 35;
+    
     // The minimum temperature delta required to engage the solar collector.
     const char* const _delta_t_on_ref               = "deltaTOn";
     float   _delta_t_on                             = 10;
@@ -151,6 +156,7 @@ class CloudStorage {
       success &= maybeUpdateFloat(configObj, _delta_t_on_ref, _delta_t_on);
       success &= maybeUpdateFloat(configObj, _delta_t_off_ref, _delta_t_off);
       success &= maybeUpdateFloat(configObj, _min_t_on_ref, _min_t_on);
+      success &= maybeUpdateFloat(configObj, _max_t_on_ref, _max_t_on);
       success &= maybeUpdateInt(configObj, _oversample_ref, _oversample);
       device.setLed(true);
 
@@ -192,6 +198,10 @@ class CloudStorage {
 
     double getMinTOn() const {
       return _min_t_on;
+    }
+
+    double getMaxTOn() const {
+      return _max_t_on;
     }
 
     double getDeltaTOn() const {
@@ -240,10 +250,13 @@ class CloudStorage {
 
       DynamicJsonBuffer _json_buffer;
       JsonObject& root = _json_buffer.createObject();
-      root["time"] = timestamp;
       root["0"] = adc0;
       root["1"] = adc1;
       root["active"] = active;
+
+      JsonObject& time = _json_buffer.createObject();
+      time[".sv"] = "timestamp";
+      root["time"] = time;
       
       String slotRef = _log_ref + "/" + _current_entry;
 
@@ -261,9 +274,11 @@ class CloudStorage {
 
       if (!fail) {
         root.printTo(Serial); Serial.println();
-        _current_entry = (_current_entry + 1) % _max_entries;
+      } else {
+        Serial.println(Firebase.error());
       }
 
+      _current_entry = (_current_entry + 1) % _max_entries;
       device.setLed(true);
     }
 };

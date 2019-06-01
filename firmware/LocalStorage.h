@@ -15,6 +15,7 @@
 #include <assert.h>
 #include "FS.h"
 #include "Device.h"
+#include "Secrets.h"
 
 class LocalStorage {
   private:
@@ -83,6 +84,13 @@ class LocalStorage {
 
     // Initializes this class's member variables with the values saved in '/config.txt'.
     bool loadConfig() {
+      // TODO(mikelehen): Reenable loading / saving from device.
+      _wifi_ssid = WIFI_SSID;
+      _wifi_password = WIFI_PASSWORD;
+      _firebase_host = FIREBASE_HOST;
+      _firebase_auth = FIREBASE_AUTH;
+      return true;
+      
       Serial.println("Loading local configuration: "); Serial.print("  ");
       File configFile = openConfigFile("r");
       if (!configFile) {
@@ -141,7 +149,8 @@ class LocalStorage {
       } else {
         // Create a sentinel file that we use to detect if the device resets in the
         // next three seconds.
-        File sentinelFile = openFile(_reset_sentinel_file_name, "w");
+        // TODO(mikelehen): Reenable this if I need to overwrite a working wifi configuration.
+        //File sentinelFile = openFile(_reset_sentinel_file_name, "w");
 
         // Prompt the user to press RESET now if they want to clear the local configuration,
         // both via a serial terminal (if connected) and by blinking the LED rapidly.
@@ -158,6 +167,7 @@ class LocalStorage {
         // Notify the user that the window for clearing local config has expired.
         device.setLed(true);
         Serial.println("[Timeout]");
+        delay(1000);
       }
 
       Serial.println();

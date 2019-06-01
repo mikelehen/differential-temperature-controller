@@ -69,8 +69,15 @@ class Network {
 
         // Have 'WiFiManager' wait for a successful connection.  If the connection fails,
         // 'WiFiManager' will automatically start the captive portal using the SSID specified
-        // below.
-        wifiManager.autoConnect(configPortalSSID.c_str());
+        // below. But we don't want to wait forever for the captive portal, so we give you 2
+        // minutes to use it and then we restart and try from scratch.
+        wifiManager.setConfigPortalTimeout(120);
+        if (!wifiManager.autoConnect(configPortalSSID.c_str())) {
+          Serial.println("Failed to connect. Resetting.");
+          delay(3000);
+          ESP.restart();
+          delay(5000);
+        }
       } else {
         // There were no settings saved in local storage, go directly to the captive portal.
         Serial.println("Starting configuration portal:");
